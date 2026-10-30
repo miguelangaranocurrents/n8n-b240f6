@@ -431,6 +431,26 @@ export const extendTransform = (expression: string): { code: string } | undefine
 			},
 		});
 
+		// JS forbids mixing `??` with `&&` or `||` without parentheses, but recast
+		// ranks `??` by precedence alone and drops the parentheses when it reprints
+		// a rewritten operand. Wrap mixed operands explicitly to keep them.
+		const isMixedLogical = (parentOperator: string, child: ExpressionKind) =>
+			child.type === 'LogicalExpression' && (parentOperator === '??') !== (child.operator === '??');
+
+		visit(ast, {
+			visitLogicalExpression(path) {
+				this.traverse(path);
+
+				const { node } = path;
+				if (isMixedLogical(node.operator, node.left)) {
+					node.left = types.builders.parenthesizedExpression(node.left);
+				}
+				if (isMixedLogical(node.operator, node.right)) {
+					node.right = types.builders.parenthesizedExpression(node.right);
+				}
+			},
+		});
+
 		return print(ast);
 	} catch (e) {
 		return;
